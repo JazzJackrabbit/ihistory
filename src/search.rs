@@ -33,7 +33,7 @@ impl SearchEngine {
 
         let query_lower = query.to_lowercase();
 
-        entries
+        let mut results: Vec<(i64, SearchResult)> = entries
             .iter()
             .filter_map(|entry| {
                 let cmd_lower = entry.command.to_lowercase();
@@ -44,14 +44,27 @@ impl SearchEngine {
                     return None;
                 }
 
-                let (_, indices) = fuzzy_match.unwrap_or((0, Vec::new()));
+                let (score, indices) = fuzzy_match.unwrap_or((0, Vec::new()));
 
-                Some(SearchResult {
-                    entry: entry.clone(),
-                    indices,
-                })
+                let score = if cmd_lower.starts_with(&query_lower) {
+                    score + 1000
+                } else {
+                    score
+                };
+
+                Some((
+                    score,
+                    SearchResult {
+                        entry: entry.clone(),
+                        indices,
+                    },
+                ))
             })
-            .collect()
+            .collect();
+
+        results.sort_by(|a, b| b.0.cmp(&a.0));
+
+        results.into_iter().map(|(_, r)| r).collect()
     }
 }
 

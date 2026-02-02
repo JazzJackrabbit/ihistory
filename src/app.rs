@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{self, Write};
+use std::io;
 use std::path::PathBuf;
 
 use crossterm::{
@@ -157,15 +157,17 @@ pub fn run(args: Args) -> Result<i32, Box<dyn std::error::Error>> {
     let mut app = App::new(entries, history_path, args.query);
     let result = run_event_loop(&mut terminal, &mut app);
 
-    disable_raw_mode()?;
+    // Cleanup terminal before any output
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    disable_raw_mode()?;
+    drop(terminal);
 
     result?;
 
     if let Some(ref command) = app.selected_command {
         copy_to_clipboard(command);
         print!("{}", command);
-        io::stdout().flush()?;
+        std::io::Write::flush(&mut std::io::stdout())?;
     }
 
     Ok(if app.execute_immediately {
