@@ -10,7 +10,11 @@ A minimal, fast, fuzzy shell history search tool.
 brew install jazzjackrabbit/tap/ihistory
 ```
 
-This installs `ihistory` and the `ih` shortcut.
+Then add to your `~/.zshrc` or `~/.bashrc`:
+
+```bash
+source "$(brew --prefix)/share/ihistory/ihistory.sh"
+```
 
 ### From crates.io
 
