@@ -2,6 +2,8 @@
 
 A fast, fuzzy shell history search.
 
+![demo](demo/demo.gif)
+
 ## Install
 
 ```bash
