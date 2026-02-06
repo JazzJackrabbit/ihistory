@@ -8,12 +8,7 @@ A fast, fuzzy shell history search.
 
 ```bash
 brew install jazzjackrabbit/tap/ihistory
-```
-
-Then add to your `~/.zshrc` or `~/.bashrc`:
-
-```bash
-source "$(brew --prefix)/share/ihistory/ihistory.sh"
+ihistory --init
 ```
 
 ## Usage
@@ -22,13 +17,6 @@ source "$(brew --prefix)/share/ihistory/ihistory.sh"
 ih           # search history
 ih git       # search with initial query
 ```
-
-| Key | Action |
-|-----|--------|
-| `Enter` | Select |
-| `Tab` | Select and run |
-| `Ctrl+D` | Delete entry |
-| `Esc` | Cancel |
 
 ## License
 
