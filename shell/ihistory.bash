@@ -15,3 +15,17 @@ ih() {
     fi
   fi
 }
+
+ih-widget() {
+  local selected
+  selected="$(ihistory)"
+  local ret=$?
+
+  if [[ $ret -eq 0 && -n "$selected" ]]; then
+    READLINE_LINE="$selected"
+    READLINE_POINT=${#selected}
+  elif [[ $ret -eq 10 && -n "$selected" ]]; then
+    READLINE_LINE="$selected"
+    READLINE_POINT=${#selected}
+  fi
+}
