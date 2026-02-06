@@ -14,8 +14,9 @@ ihistory --init
 ## Usage
 
 ```bash
-ih           # search history
-ih git       # search with initial query
+ih           	# (or ihistory) launch 
+ih git       	# search with initial query
+ih "git tag"	# search with initial query 
 ```
 
 ## License
