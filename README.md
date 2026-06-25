@@ -82,7 +82,7 @@ The selected command is also copied to your system clipboard on exit.
 
 ## How it works
 
-`ih --init` prints a shell function (and a ZLE widget on zsh) that calls the `ihistory` binary. The binary reads your history file, ranks entries against your query with a fuzzy matcher, and renders the results in a `ratatui` TUI on the alternate screen. On selection it signals the calling shell via its exit code — `10` to execute the command, otherwise to place it on the prompt — so the shell, not the binary, decides what runs.
+`ih --init` adds a small shell function that calls the `ihistory` binary, which fuzzy-ranks your history in a `ratatui` TUI and hands the chosen command back to your shell to run or edit.
 
 ## Building
 
