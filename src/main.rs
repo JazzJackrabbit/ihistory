@@ -1,3 +1,4 @@
+mod alias;
 mod app;
 mod history;
 mod search;
@@ -27,10 +28,23 @@ pub struct Args {
     /// Max entries to load (0 = unlimited)
     #[arg(short = 'n', long, default_value = "50000")]
     pub limit: usize,
+
+    /// Open in aliases tab
+    #[arg(long)]
+    pub aliases: bool,
+
+    /// Print shell alias definitions for eval
+    #[arg(long)]
+    pub shell_aliases: bool,
 }
 
 fn main() {
     let args = Args::parse();
+
+    if args.shell_aliases {
+        print_shell_aliases();
+        return;
+    }
 
     if let Some(ref shell) = args.init {
         match shell.as_str() {
@@ -57,6 +71,15 @@ fn main() {
             eprintln!("Error: {}", e);
             std::process::exit(1);
         }
+    }
+}
+
+fn print_shell_aliases() {
+    let aliases = alias::load_aliases();
+    for a in aliases {
+        // Escape single quotes: ' → '\''
+        let escaped = a.command.replace('\'', "'\\''");
+        println!("alias {}='{}'", a.name, escaped);
     }
 }
 

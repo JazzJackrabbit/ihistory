@@ -7,8 +7,6 @@ use std::path::{Path, PathBuf};
 pub struct HistoryEntry {
     pub command: String,
     pub timestamp: Option<i64>,
-    #[allow(dead_code)]
-    pub raw_line: Option<String>,
 }
 
 fn blocklist_path() -> Option<PathBuf> {
@@ -85,7 +83,6 @@ fn is_self_command(cmd: &str) -> bool {
 struct ParsedZshLine {
     command: String,
     timestamp: Option<i64>,
-    raw_line: String,
 }
 
 /// Parses zsh extended history format: `: EPOCH:DURATION;command`
@@ -101,25 +98,19 @@ fn parse_zsh_line(line: &str) -> Option<ParsedZshLine> {
 
             let timestamp = meta.split(':').next().and_then(|s| s.parse::<i64>().ok());
 
-            return Some(ParsedZshLine {
-                command,
-                timestamp,
-                raw_line: line.to_string(),
-            });
+            return Some(ParsedZshLine { command, timestamp });
         }
         // Malformed extended format - treat rest as command
         if !rest.is_empty() {
             return Some(ParsedZshLine {
                 command: rest.to_string(),
                 timestamp: None,
-                raw_line: line.to_string(),
             });
         }
     } else if !line.is_empty() {
         return Some(ParsedZshLine {
             command: line.to_string(),
             timestamp: None,
-            raw_line: line.to_string(),
         });
     }
     None
@@ -138,43 +129,40 @@ pub fn load_history(path: &Path, limit: usize) -> Result<Vec<HistoryEntry>, std:
     let content = fs::read(path)?;
     let is_zsh = is_zsh_format(path);
 
-    let mut entry_data: HashMap<String, (Option<i64>, Option<String>)> = HashMap::new();
+    let mut entry_data: HashMap<String, Option<i64>> = HashMap::new();
     let mut order: Vec<String> = Vec::new();
-    let mut multiline_buffer: Option<(String, Option<i64>, String)> = None;
+    let mut multiline_buffer: Option<(String, Option<i64>)> = None;
 
     for line_bytes in content.split(|&b| b == b'\n') {
         let line = String::from_utf8_lossy(line_bytes).into_owned();
         if is_zsh {
-            if let Some((ref mut cmd, ref ts, ref mut raw)) = multiline_buffer {
-                raw.push('\n');
-                raw.push_str(&line);
+            if let Some((ref mut cmd, ref ts)) = multiline_buffer {
                 cmd.push('\n');
                 cmd.push_str(&line);
 
                 if !line.ends_with('\\') {
                     let command = cmd.clone();
                     let timestamp = *ts;
-                    let raw_line = raw.clone();
                     multiline_buffer = None;
 
                     if entry_data.contains_key(&command) {
                         order.retain(|c| c != &command);
                     }
                     order.push(command.clone());
-                    entry_data.insert(command, (timestamp, Some(raw_line)));
+                    entry_data.insert(command, timestamp);
                 }
                 continue;
             }
 
             if let Some(parsed) = parse_zsh_line(&line) {
                 if parsed.command.ends_with('\\') {
-                    multiline_buffer = Some((parsed.command, parsed.timestamp, parsed.raw_line));
+                    multiline_buffer = Some((parsed.command, parsed.timestamp));
                 } else {
                     if entry_data.contains_key(&parsed.command) {
                         order.retain(|c| c != &parsed.command);
                     }
                     order.push(parsed.command.clone());
-                    entry_data.insert(parsed.command, (parsed.timestamp, Some(parsed.raw_line)));
+                    entry_data.insert(parsed.command, parsed.timestamp);
                 }
             }
         } else if let Some(command) = parse_bash_line(&line) {
@@ -182,7 +170,7 @@ pub fn load_history(path: &Path, limit: usize) -> Result<Vec<HistoryEntry>, std:
                 order.retain(|c| c != &command);
             }
             order.push(command.clone());
-            entry_data.insert(command, (None, Some(line.clone())));
+            entry_data.insert(command, None);
         }
     }
 
@@ -195,12 +183,8 @@ pub fn load_history(path: &Path, limit: usize) -> Result<Vec<HistoryEntry>, std:
         .filter(|cmd| !blocklist.contains(cmd))
         .filter(|cmd| !is_self_command(cmd))
         .map(|command| {
-            let (timestamp, raw_line) = entry_data.remove(&command).unwrap_or((None, None));
-            HistoryEntry {
-                command,
-                timestamp,
-                raw_line,
-            }
+            let timestamp = entry_data.remove(&command).flatten();
+            HistoryEntry { command, timestamp }
         })
         .collect();
 

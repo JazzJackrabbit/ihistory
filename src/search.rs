@@ -62,7 +62,7 @@ impl SearchEngine {
             })
             .collect();
 
-        results.sort_by(|a, b| b.0.cmp(&a.0));
+        results.sort_by_key(|b| std::cmp::Reverse(b.0));
 
         results.into_iter().map(|(_, r)| r).collect()
     }
@@ -82,7 +82,6 @@ mod tests {
         HistoryEntry {
             command: cmd.to_string(),
             timestamp: None,
-            raw_line: None,
         }
     }
 
