@@ -6,15 +6,6 @@ A fast, fuzzy shell-history search for your terminal.
 
 ![demo](demo/demo.gif)
 
-## Features
-
-- Fuzzy matching ranked by relevance ([`fuzzy-matcher`](https://crates.io/crates/fuzzy-matcher))
-- Full-screen TUI built on [`ratatui`](https://ratatui.rs) and `crossterm`, running in an alternate screen
-- Run a command, insert it onto your prompt to edit, or copy it to the clipboard
-- Delete history entries directly from the list
-- One-line shell integration for `zsh` and `bash`
-- Loads up to 50k entries by default (configurable)
-
 ## Install
 
 ### Homebrew
