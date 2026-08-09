@@ -41,6 +41,8 @@ Or let `ih` auto-detect your shell:
 ihistory --init
 ```
 
+The integration defines the `ih` command and binds `Ctrl+R` to open the search on your prompt. To keep your shell's own `Ctrl+R`, export `IHISTORY_NO_BINDKEY=1` before the eval line.
+
 ## Usage
 
 ```bash
