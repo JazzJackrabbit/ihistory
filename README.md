@@ -2,9 +2,9 @@
 
 [![CI](https://github.com/JazzJackrabbit/ihistory/actions/workflows/ci.yml/badge.svg)](https://github.com/JazzJackrabbit/ihistory/actions/workflows/ci.yml)
 
-A fast, fuzzy shell-history search for your terminal.
+A replacement for your shell's Ctrl+R.
 
-`ihistory` (`ih`) is a small Rust TUI for searching shell history. Type a few characters to fuzzy-filter matches, then run, edit, or copy the selected command.
+The built-in reverse search is exact-substring, one match at a time, blind. `ihistory` (`ih`) is a small Rust TUI that puts a ranked, fuzzy-filtered list of your history on that same keybinding — with previews for long commands, timestamps, and the ability to hide entries from results. One binary, one line of shell setup.
 
 ![demo](demo/demo.gif)
 

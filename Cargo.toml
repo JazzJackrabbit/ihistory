@@ -2,7 +2,7 @@
 name = "ihistory"
 version = "0.1.5"
 edition = "2021"
-description = "A minimal, fast, fuzzy shell history search tool"
+description = "A replacement for your shell's Ctrl+R: fuzzy history search with previews, timestamps, and hiding"
 license = "MIT"
 authors = ["Kirill Ragozin"]
 repository = "https://github.com/jazzjackrabbit/ihistory"
