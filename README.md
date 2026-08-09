@@ -1,5 +1,7 @@
 # ihistory
 
+[![CI](https://github.com/JazzJackrabbit/ihistory/actions/workflows/ci.yml/badge.svg)](https://github.com/JazzJackrabbit/ihistory/actions/workflows/ci.yml)
+
 A fast, fuzzy shell-history search for your terminal.
 
 `ihistory` (`ih`) is a small Rust TUI for searching shell history. Type a few characters to fuzzy-filter matches, then run, edit, or copy the selected command.
