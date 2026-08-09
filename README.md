@@ -55,8 +55,8 @@ ih -n 100000            # raise the max entries loaded (0 = unlimited)
 | Key | Action |
 | --- | --- |
 | _type_ | filter history fuzzily |
-| `Enter` | run the selected command |
-| `Tab` | insert it onto your prompt to edit |
+| `Enter` | insert the selected command onto your prompt to edit |
+| `Tab` | run it immediately |
 | `↑` / `Ctrl-P` | move selection up |
 | `↓` / `Ctrl-N` | move selection down |
 | `PageUp` / `PageDown` | jump a page |
