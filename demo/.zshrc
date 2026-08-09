@@ -1,16 +1,4 @@
 PS1="$ "
 
-ih() {
-  local selected ret
-  local script_dir="${0:A:h}"
-  selected="$(cargo run --quiet --manifest-path "${script_dir}/../Cargo.toml" -- "$@")"
-  ret=$?
-  if [[ -n "$selected" ]]; then
-    if [[ $ret -eq 10 ]]; then
-      echo "$ $selected"
-      eval "$selected"
-    else
-      echo "$ $selected"
-    fi
-  fi
-}
+path=("${0:A:h}/../target/release" $path)
+source "${0:A:h}/../shell/ihistory.zsh"

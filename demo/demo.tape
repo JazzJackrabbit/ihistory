@@ -1,5 +1,8 @@
 # VHS demo script
-# Run: vhs demo.tape
+# Run: ./setup.sh backup && ./setup.sh clear && ./setup.sh populate && vhs demo.tape && ./setup.sh restore
+#
+# The recording launches via `ih` — vhs's pty cannot host the Ctrl+R zle
+# widget (its subshell breaks the TUI's input reader), real terminals can.
 
 Output demo.gif
 
@@ -23,7 +26,7 @@ Sleep 1s
 Type "ih"
 Sleep 500ms
 Enter
-Sleep 2s
+Sleep 1.5s
 
 Type "git"
 Sleep 1.5s
@@ -33,7 +36,9 @@ Sleep 500ms
 Down
 Sleep 500ms
 Down
+Sleep 500ms
+Down
 Sleep 1s
 
 Enter
-Sleep 2s
+Sleep 2.5s
