@@ -1,6 +1,7 @@
 mod app;
 mod history;
 mod search;
+mod syntax;
 mod ui;
 
 use clap::Parser;

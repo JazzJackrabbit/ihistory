@@ -11,6 +11,7 @@ use ratatui::{backend::CrosstermBackend, widgets::ListState, Terminal};
 
 use crate::history::{detect_history_file, hide_entry, load_history, HistoryEntry};
 use crate::search::{SearchEngine, SearchResult};
+use crate::syntax;
 use crate::ui::UI;
 use crate::Args;
 
@@ -30,6 +31,7 @@ pub struct App {
     execute_immediately: bool,
     history_path: PathBuf,
     status_message: Option<String>,
+    syntax_enabled: bool,
 }
 
 impl App {
@@ -56,6 +58,7 @@ impl App {
             execute_immediately: false,
             history_path,
             status_message: None,
+            syntax_enabled: syntax::enabled(),
         }
     }
 
@@ -123,6 +126,10 @@ impl App {
             (KeyCode::Char('u'), KeyModifiers::CONTROL) => {
                 self.query.clear();
                 self.update_search();
+            }
+            (KeyCode::Char('t'), KeyModifiers::CONTROL) => {
+                self.syntax_enabled = !self.syntax_enabled;
+                syntax::set_enabled(self.syntax_enabled);
             }
             (KeyCode::Char(c), KeyModifiers::NONE | KeyModifiers::SHIFT) => {
                 self.query.push(c);
@@ -196,6 +203,7 @@ fn run_event_loop(
             app.scroll_offset,
             &mut app.list_state,
             app.status_message.as_deref(),
+            app.syntax_enabled,
         );
     })?;
 
@@ -223,6 +231,7 @@ fn run_event_loop(
                 app.scroll_offset,
                 &mut app.list_state,
                 app.status_message.as_deref(),
+                app.syntax_enabled,
             );
         })?;
     }

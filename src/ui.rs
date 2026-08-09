@@ -10,6 +10,7 @@ use ratatui::{
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::search::SearchResult;
+use crate::syntax::{classify_with, Class, CommandIndex};
 
 const INPUT_HEIGHT: u16 = 3;
 const PREVIEW_HEIGHT: u16 = 8;
@@ -21,6 +22,22 @@ const COLOR_MUTED: Color = Color::DarkGray;
 const COLOR_TEXT: Color = Color::White;
 const COLOR_MATCH: Color = Color::Yellow;
 const COLOR_SELECTED_BG: Color = Color::Rgb(40, 44, 52);
+// Distinct from COLOR_ACCENT on purpose: the chrome owns teal/cyan, the
+// command word in results owns blue, so UI and content never blur together.
+const COLOR_SYNTAX_CMD: Color = Color::Rgb(137, 180, 250);
+
+// Syntax palette: deliberately quiet. The command word carries the accent,
+// strings and variables get one muted hue each, structure fades back.
+fn class_style(class: Class) -> Style {
+    match class {
+        Class::Command => Style::default().fg(COLOR_SYNTAX_CMD),
+        Class::Flag => Style::default().fg(Color::Gray),
+        Class::Str => Style::default().fg(Color::Green),
+        Class::Var => Style::default().fg(Color::Magenta),
+        Class::Operator => Style::default().fg(COLOR_MUTED),
+        Class::Plain => Style::default().fg(COLOR_TEXT),
+    }
+}
 
 fn format_relative_time(timestamp: Option<i64>, now: i64) -> Option<String> {
     let ts = timestamp?;
@@ -62,11 +79,15 @@ fn format_relative_time(timestamp: Option<i64>, now: i64) -> Option<String> {
     })
 }
 
-pub struct UI;
+pub struct UI {
+    commands: CommandIndex,
+}
 
 impl UI {
     pub fn new() -> Self {
-        Self
+        Self {
+            commands: CommandIndex::from_path(),
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -79,6 +100,7 @@ impl UI {
         scroll_offset: usize,
         list_state: &mut ListState,
         status_message: Option<&str>,
+        syntax_enabled: bool,
     ) -> usize {
         let selected_command = results.get(selected_index).map(|r| &r.entry.command);
 
@@ -101,10 +123,11 @@ impl UI {
             scroll_offset,
             list_state,
             status_message,
+            syntax_enabled,
         );
 
         if let Some(cmd) = selected_command {
-            self.render_preview(frame, chunks[2], cmd);
+            self.render_preview(frame, chunks[2], cmd, syntax_enabled);
         } else {
             self.render_empty_preview(frame, chunks[2]);
         }
@@ -113,14 +136,9 @@ impl UI {
         new_offset
     }
 
-    fn render_preview(&self, frame: &mut Frame, area: Rect, command: &str) {
+    fn render_preview(&self, frame: &mut Frame, area: Rect, command: &str, syntax_enabled: bool) {
         let inner_width = area.width.saturating_sub(2) as usize;
-        let wrapped = textwrap::wrap(command, inner_width);
-        let lines: Vec<Line> = wrapped
-            .iter()
-            .take(PREVIEW_LINES)
-            .map(|s| Line::from(Span::styled(s.to_string(), Style::default().fg(COLOR_TEXT))))
-            .collect();
+        let lines = preview_lines(command, inner_width, syntax_enabled, Some(&self.commands));
 
         let preview = Paragraph::new(lines).block(
             Block::default()
@@ -170,6 +188,7 @@ impl UI {
         scroll_offset: usize,
         list_state: &mut ListState,
         status_message: Option<&str>,
+        syntax_enabled: bool,
     ) -> usize {
         let visible_height = area.height.saturating_sub(2) as usize;
 
@@ -200,6 +219,8 @@ impl UI {
                     is_selected,
                     available_width,
                     now,
+                    syntax_enabled,
+                    Some(&self.commands),
                 );
 
                 let style = if is_selected {
@@ -238,21 +259,79 @@ impl UI {
     fn render_help_bar(&self, frame: &mut Frame, area: Rect) {
         let help = Paragraph::new(Line::from(vec![
             Span::styled("↑↓", Style::default().fg(COLOR_ACCENT)),
-            Span::styled(" navigate  ", Style::default().fg(COLOR_MUTED)),
+            Span::styled(" move ", Style::default().fg(COLOR_MUTED)),
             Span::styled("Enter", Style::default().fg(COLOR_ACCENT)),
-            Span::styled(" select  ", Style::default().fg(COLOR_MUTED)),
+            Span::styled(" select ", Style::default().fg(COLOR_MUTED)),
             Span::styled("Tab", Style::default().fg(COLOR_ACCENT)),
-            Span::styled(" run  ", Style::default().fg(COLOR_MUTED)),
+            Span::styled(" run ", Style::default().fg(COLOR_MUTED)),
             Span::styled("Ctrl+D", Style::default().fg(COLOR_ACCENT)),
-            Span::styled(" hide  ", Style::default().fg(COLOR_MUTED)),
+            Span::styled(" hide ", Style::default().fg(COLOR_MUTED)),
+            Span::styled("Ctrl+T", Style::default().fg(COLOR_ACCENT)),
+            Span::styled(" toggle color ", Style::default().fg(COLOR_MUTED)),
             Span::styled("Esc", Style::default().fg(COLOR_ACCENT)),
-            Span::styled(" cancel", Style::default().fg(COLOR_MUTED)),
+            Span::styled(" quit", Style::default().fg(COLOR_MUTED)),
         ]));
 
         frame.render_widget(help, area);
     }
 }
 
+/// Wraps the command for the preview pane, carrying syntax colors across
+/// wrapped lines. textwrap only elides whitespace at break points, so a
+/// pointer into the original chars recovers each wrapped char's class.
+fn preview_lines(
+    command: &str,
+    width: usize,
+    syntax_enabled: bool,
+    index: Option<&CommandIndex>,
+) -> Vec<Line<'static>> {
+    let wrapped = textwrap::wrap(command, width.max(1));
+    let plain = Style::default().fg(COLOR_TEXT);
+    if !syntax_enabled {
+        return wrapped
+            .iter()
+            .take(PREVIEW_LINES)
+            .map(|s| Line::from(Span::styled(s.to_string(), plain)))
+            .collect();
+    }
+
+    let chars: Vec<char> = command.chars().collect();
+    let classes = classify_with(command, index);
+    let mut pos = 0usize;
+    wrapped
+        .iter()
+        .take(PREVIEW_LINES)
+        .map(|piece| {
+            let mut spans = Vec::new();
+            let mut run = String::new();
+            let mut run_style = plain;
+            for pc in piece.chars() {
+                while pos < chars.len() && chars[pos] != pc {
+                    pos += 1;
+                }
+                let style = if pos < chars.len() {
+                    class_style(classes[pos])
+                } else {
+                    plain
+                };
+                if pos < chars.len() {
+                    pos += 1;
+                }
+                if style != run_style && !run.is_empty() {
+                    spans.push(Span::styled(std::mem::take(&mut run), run_style));
+                }
+                run_style = style;
+                run.push(pc);
+            }
+            if !run.is_empty() {
+                spans.push(Span::styled(run, run_style));
+            }
+            Line::from(spans)
+        })
+        .collect()
+}
+
+#[allow(clippy::too_many_arguments)]
 fn render_command_line(
     command: &str,
     match_indices: &[usize],
@@ -260,6 +339,8 @@ fn render_command_line(
     is_selected: bool,
     available_width: usize,
     now: i64,
+    syntax_enabled: bool,
+    index: Option<&CommandIndex>,
 ) -> Line<'static> {
     let prefix_style = Style::default().fg(if is_selected {
         COLOR_ACCENT
@@ -283,7 +364,8 @@ fn render_command_line(
     // indices, so highlighting walks chars as well.
     let budget = max_cmd_width.saturating_sub(3);
     let matches: std::collections::HashSet<usize> = match_indices.iter().copied().collect();
-    let mut kept: Vec<(char, bool)> = Vec::new();
+    let classes = classify_with(command, index);
+    let mut kept: Vec<(char, Style)> = Vec::new();
     let mut used_width = 0;
     let mut needs_truncation = false;
     for (i, ch) in command.chars().enumerate() {
@@ -293,7 +375,16 @@ fn render_command_line(
             break;
         }
         used_width += w;
-        kept.push((ch, matches.contains(&i)));
+        // Three layers, in precedence order: the match highlight wins over
+        // the syntax color, which replaces the flat text color.
+        let style = if matches.contains(&i) {
+            match_style
+        } else if syntax_enabled {
+            class_style(classes[i])
+        } else {
+            normal_style
+        };
+        kept.push((ch, style));
     }
 
     let mut spans = Vec::with_capacity(8);
@@ -304,26 +395,16 @@ fn render_command_line(
 
     // Consecutive chars with the same styling collapse into one span.
     let mut run = String::new();
-    let mut run_matched = false;
-    for &(ch, matched) in &kept {
-        if matched != run_matched && !run.is_empty() {
-            let style = if run_matched {
-                match_style
-            } else {
-                normal_style
-            };
-            spans.push(Span::styled(std::mem::take(&mut run), style));
+    let mut run_style = normal_style;
+    for &(ch, style) in &kept {
+        if style != run_style && !run.is_empty() {
+            spans.push(Span::styled(std::mem::take(&mut run), run_style));
         }
-        run_matched = matched;
+        run_style = style;
         run.push(ch);
     }
     if !run.is_empty() {
-        let style = if run_matched {
-            match_style
-        } else {
-            normal_style
-        };
-        spans.push(Span::styled(run, style));
+        spans.push(Span::styled(run, run_style));
     }
 
     if needs_truncation {
@@ -368,7 +449,7 @@ mod tests {
     fn truncates_non_ascii_without_panicking() {
         // Byte-based truncation used to slice inside 'ö' and panic.
         let cmd = "gít cömmit -m 'ünïcöde chängé' --amend --no-verify";
-        let line = render_command_line(cmd, &[], None, false, 24, 0);
+        let line = render_command_line(cmd, &[], None, false, 24, 0, true, None);
         let text = text_of(&line);
         assert!(text.contains("..."));
         assert!(text.starts_with("  gít cömmit"));
@@ -380,7 +461,7 @@ mod tests {
         // columns for every index after it.
         let cmd = "économie status";
         let indices = [0, 9, 10]; // é, s, t (char positions)
-        let line = render_command_line(cmd, &indices, None, false, 80, 0);
+        let line = render_command_line(cmd, &indices, None, false, 80, 0, true, None);
         assert_eq!(matched_text(&line), "ést");
     }
 
@@ -389,7 +470,7 @@ mod tests {
         // Four CJK chars occupy eight cells; a char-counting truncation
         // would overrun the column budget.
         let cmd = "echo 日本語検索 && ls";
-        let line = render_command_line(cmd, &[], None, false, 16, 0);
+        let line = render_command_line(cmd, &[], None, false, 16, 0, true, None);
         let text = text_of(&line);
         assert!(text.contains("..."));
         let width: usize = text.width();
@@ -399,14 +480,56 @@ mod tests {
     #[test]
     fn pads_the_timestamp_by_display_width() {
         let now = 1_700_000_000;
-        let ascii = render_command_line("ls -la", &[], Some(now - 30), false, 40, now);
-        let unicode = render_command_line("ls -lä", &[], Some(now - 30), false, 40, now);
+        let ascii = render_command_line("ls -la", &[], Some(now - 30), false, 40, now, true, None);
+        let unicode =
+            render_command_line("ls -lä", &[], Some(now - 30), false, 40, now, true, None);
         assert_eq!(text_of(&ascii).width(), text_of(&unicode).width());
     }
 
     #[test]
+    fn preview_carries_colors_across_wrapped_lines() {
+        // The quoted string spans the wrap point; both halves stay Str-green.
+        let cmd = r#"git commit -m "a rather long commit message here""#;
+        let lines = preview_lines(cmd, 30, true, None);
+        assert!(lines.len() >= 2);
+        let first_git = lines[0]
+            .spans
+            .iter()
+            .find(|s| s.content.contains("git"))
+            .unwrap();
+        assert_eq!(first_git.style.fg, Some(COLOR_SYNTAX_CMD));
+        let tail = lines.last().unwrap();
+        for span in tail.spans.iter().filter(|s| !s.content.trim().is_empty()) {
+            assert_eq!(span.style.fg, Some(Color::Green), "span {:?}", span.content);
+        }
+    }
+
+    #[test]
+    fn preview_toggle_off_is_flat() {
+        let lines = preview_lines("git status", 40, false, None);
+        assert_eq!(lines[0].spans[0].style.fg, Some(COLOR_TEXT));
+    }
+
+    #[test]
+    fn toggle_off_renders_flat_color() {
+        let line = render_command_line(
+            "brew update && brew upgrade",
+            &[],
+            None,
+            false,
+            80,
+            0,
+            false,
+            None,
+        );
+        for span in line.spans.iter().skip(1) {
+            assert_eq!(span.style.fg, Some(COLOR_TEXT), "span {:?}", span.content);
+        }
+    }
+
+    #[test]
     fn fits_short_commands_without_ellipsis() {
-        let line = render_command_line("ls", &[], None, false, 40, 0);
+        let line = render_command_line("ls", &[], None, false, 40, 0, true, None);
         assert!(!text_of(&line).contains("..."));
     }
 }
