@@ -60,11 +60,13 @@ ih -n 100000            # raise the max entries loaded (0 = unlimited)
 | `↑` / `Ctrl-P` | move selection up |
 | `↓` / `Ctrl-N` | move selection down |
 | `PageUp` / `PageDown` | jump a page |
-| `Ctrl-D` | delete the selected entry from history |
+| `Ctrl-D` | hide the selected entry from results |
 | `Ctrl-U` | clear the query |
 | `Esc` / `Ctrl-C` | quit |
 
 The selected command is copied to the system clipboard on exit.
+
+Hiding an entry (`Ctrl-D`) never touches your shell's history file: the command is added to a blocklist at `~/.config/ihistory/deleted` and filtered out of future searches. Delete lines from that file to unhide.
 
 ## Building
 

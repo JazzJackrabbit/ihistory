@@ -9,7 +9,7 @@ use crossterm::{
 };
 use ratatui::{backend::CrosstermBackend, widgets::ListState, Terminal};
 
-use crate::history::{delete_entry, detect_history_file, load_history, HistoryEntry};
+use crate::history::{detect_history_file, hide_entry, load_history, HistoryEntry};
 use crate::search::{SearchEngine, SearchResult};
 use crate::ui::UI;
 use crate::Args;
@@ -67,7 +67,7 @@ impl App {
         self.scroll_offset = 0;
     }
 
-    fn delete_selected(&mut self) {
+    fn hide_selected(&mut self) {
         let Some(result) = self.results.get(self.selected) else {
             return;
         };
@@ -75,8 +75,8 @@ impl App {
         let command = result.entry.command.clone();
         let prev_selected = self.selected;
 
-        if let Err(e) = delete_entry(&self.history_path, &result.entry) {
-            self.status_message = Some(format!("Delete failed: {}", e));
+        if let Err(e) = hide_entry(&self.history_path, &result.entry) {
+            self.status_message = Some(format!("Hide failed: {}", e));
             return;
         }
 
@@ -99,7 +99,7 @@ impl App {
             (KeyCode::Esc, _) | (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
                 self.should_quit = true;
             }
-            (KeyCode::Char('d'), KeyModifiers::CONTROL) => self.delete_selected(),
+            (KeyCode::Char('d'), KeyModifiers::CONTROL) => self.hide_selected(),
             (KeyCode::Enter, _) => self.select_command(false),
             (KeyCode::Tab, _) => self.select_command(true),
             (KeyCode::Up, _) | (KeyCode::Char('p'), KeyModifiers::CONTROL) => {

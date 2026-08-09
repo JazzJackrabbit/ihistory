@@ -240,7 +240,11 @@ pub fn load_history(path: &Path, limit: usize) -> Result<Vec<HistoryEntry>, std:
     Ok(entries)
 }
 
-pub fn delete_entry(_path: &Path, entry: &HistoryEntry) -> Result<(), std::io::Error> {
+/// Hides a command from ihistory's results. The shell's history file is
+/// never modified — the command goes on a blocklist under the config
+/// directory (a file named `deleted`, kept for compatibility with earlier
+/// releases) and is filtered out on load.
+pub fn hide_entry(_path: &Path, entry: &HistoryEntry) -> Result<(), std::io::Error> {
     add_to_blocklist(&entry.command)
 }
 

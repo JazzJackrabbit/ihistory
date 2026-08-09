@@ -244,7 +244,7 @@ impl UI {
             Span::styled("Tab", Style::default().fg(COLOR_ACCENT)),
             Span::styled(" run  ", Style::default().fg(COLOR_MUTED)),
             Span::styled("Ctrl+D", Style::default().fg(COLOR_ACCENT)),
-            Span::styled(" delete  ", Style::default().fg(COLOR_MUTED)),
+            Span::styled(" hide  ", Style::default().fg(COLOR_MUTED)),
             Span::styled("Esc", Style::default().fg(COLOR_ACCENT)),
             Span::styled(" cancel", Style::default().fg(COLOR_MUTED)),
         ]));
