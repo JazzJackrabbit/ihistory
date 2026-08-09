@@ -78,6 +78,29 @@ fn is_zsh_format(path: &Path) -> bool {
     path.to_string_lossy().contains("zsh")
 }
 
+/// Zsh "metafies" bytes that collide with its internal markers (0x83–0x9D
+/// and NUL) before writing them to the history file: the byte is replaced by
+/// Meta (0x83) followed by the byte XOR 0x20. Those ranges land inside UTF-8
+/// continuation bytes, so any history entry containing CJK or various
+/// accented characters is unreadable until unmetafied.
+const ZSH_META: u8 = 0x83;
+
+fn unmetafy(bytes: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut iter = bytes.iter();
+    while let Some(&b) = iter.next() {
+        if b == ZSH_META {
+            match iter.next() {
+                Some(&escaped) => out.push(escaped ^ 0x20),
+                None => out.push(b), // trailing Meta: keep it rather than lose it
+            }
+        } else {
+            out.push(b);
+        }
+    }
+    out
+}
+
 fn is_self_command(cmd: &str) -> bool {
     cmd == "ih" || cmd == "ihistory" || cmd.starts_with("ih ") || cmd.starts_with("ihistory ")
 }
@@ -143,7 +166,11 @@ pub fn load_history(path: &Path, limit: usize) -> Result<Vec<HistoryEntry>, std:
     let mut multiline_buffer: Option<(String, Option<i64>, String)> = None;
 
     for line_bytes in content.split(|&b| b == b'\n') {
-        let line = String::from_utf8_lossy(line_bytes).into_owned();
+        let line = if is_zsh {
+            String::from_utf8_lossy(&unmetafy(line_bytes)).into_owned()
+        } else {
+            String::from_utf8_lossy(line_bytes).into_owned()
+        };
         if is_zsh {
             if let Some((ref mut cmd, ref ts, ref mut raw)) = multiline_buffer {
                 raw.push('\n');
@@ -247,5 +274,41 @@ mod tests {
     fn test_parse_empty_line() {
         assert_eq!(parse_bash_line(""), None);
         assert_eq!(parse_bash_line("   "), None);
+    }
+
+    #[test]
+    fn test_unmetafy_passes_plain_bytes_through() {
+        assert_eq!(unmetafy(b"git status"), b"git status");
+    }
+
+    #[test]
+    fn test_unmetafy_decodes_cjk() {
+        // "日" is E6 97 A5 in UTF-8; zsh metafies the 0x97 continuation byte
+        // as 0x83 followed by 0x97 ^ 0x20.
+        let metafied = [0xE6, 0x83, 0xB7, 0xA5];
+        assert_eq!(unmetafy(&metafied), [0xE6, 0x97, 0xA5]);
+        assert_eq!(String::from_utf8(unmetafy(&metafied)).unwrap(), "日");
+    }
+
+    #[test]
+    fn test_unmetafy_decodes_meta_itself() {
+        // A literal 0x83 byte is stored as Meta + (0x83 ^ 0x20).
+        let metafied = [0x83, 0xA3];
+        assert_eq!(unmetafy(&metafied), [0x83]);
+    }
+
+    #[test]
+    fn test_load_history_reads_metafied_zsh_entries() {
+        let dir = std::env::temp_dir().join(format!("ihistory-test-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(".zsh_history");
+        // ": 1706500000:0;echo 日" with the metafied encoding of 日.
+        let mut bytes = b": 1706500000:0;echo ".to_vec();
+        bytes.extend([0xE6, 0x83, 0xB7, 0xA5, b'\n']);
+        fs::write(&path, bytes).unwrap();
+
+        let entries = load_history(&path, 0).unwrap();
+        fs::remove_dir_all(&dir).ok();
+        assert!(entries.iter().any(|e| e.command == "echo 日"));
     }
 }
