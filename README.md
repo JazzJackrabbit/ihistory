@@ -13,6 +13,7 @@ A fast, fuzzy shell-history search for your terminal.
 ### Homebrew
 
 ```bash
+brew trust jazzjackrabbit/tap   # newer Homebrew refuses untrusted third-party taps
 brew install jazzjackrabbit/tap/ihistory
 ```
 
