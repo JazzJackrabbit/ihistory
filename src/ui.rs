@@ -177,7 +177,7 @@ impl UI {
         if selected_index < new_offset {
             new_offset = selected_index;
         } else if selected_index >= new_offset + visible_height {
-            new_offset = selected_index.saturating_sub(visible_height - 1);
+            new_offset = selected_index.saturating_sub(visible_height.saturating_sub(1));
         }
         new_offset = new_offset.min(results.len().saturating_sub(visible_height));
 
