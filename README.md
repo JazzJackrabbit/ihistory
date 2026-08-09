@@ -2,9 +2,7 @@
 
 [![CI](https://github.com/JazzJackrabbit/ihistory/actions/workflows/ci.yml/badge.svg)](https://github.com/JazzJackrabbit/ihistory/actions/workflows/ci.yml)
 
-Fuzzy shell-history search on `Ctrl+R`.
-
-`ihistory` (`ih`) is a small Rust TUI: type a few characters to filter your history, then edit or run the selected command. Long commands are shown in a preview pane, entries carry their timestamps, and anything you don't want resurfacing can be hidden.
+A small TUI for fuzzy shell-history search, on `Ctrl+R`.
 
 ![demo](demo/demo.gif)
 
