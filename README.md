@@ -41,13 +41,17 @@ Or let `ih` auto-detect your shell:
 ihistory --init
 ```
 
-The integration defines the `ih` command and binds `Ctrl+R` to open the search on your prompt. To keep your shell's own `Ctrl+R`, export `IHISTORY_NO_BINDKEY=1` before the eval line.
+The integration binds `Ctrl+R` and defines the `ih` command. To keep your shell's own `Ctrl+R`, export `IHISTORY_NO_BINDKEY=1` before the eval line.
 
 ## Usage
 
+Press `Ctrl+R` at your prompt. Type to filter, pick a command, then `Enter` to put it back on your prompt for editing or `Tab` to run it straight away. The selection is copied to the clipboard either way.
+
+The `ih` command opens the same search and takes arguments:
+
 ```bash
-ih                      # launch the interactive search
-ih git                  # launch pre-filtered to "git"
+ih                      # interactive search
+ih git                  # pre-filtered to "git"
 ih "git tag"            # multi-word initial query
 ih -f ~/.bash_history   # search a specific history file
 ih -n 100000            # raise the max entries loaded (0 = unlimited)
@@ -66,8 +70,6 @@ ih -n 100000            # raise the max entries loaded (0 = unlimited)
 | `Ctrl-D` | hide the selected entry from results |
 | `Ctrl-U` | clear the query |
 | `Esc` / `Ctrl-C` | quit |
-
-The selected command is copied to the system clipboard on exit.
 
 Hiding an entry (`Ctrl-D`) never touches your shell's history file: the command is added to a blocklist at `~/.config/ihistory/deleted` and filtered out of future searches. Delete lines from that file to unhide.
 
