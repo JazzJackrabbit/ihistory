@@ -66,10 +66,13 @@ ih -n 100000            # raise the max entries loaded (0 = unlimited)
 | `↓` / `Ctrl-N` | move selection down |
 | `PageUp` / `PageDown` | jump a page |
 | `Ctrl-D` | hide the selected entry from results |
+| `Ctrl-T` | toggle syntax highlighting |
 | `Ctrl-U` | clear the query |
 | `Esc` / `Ctrl-C` | quit |
 
 Hiding an entry (`Ctrl-D`) never touches your shell's history file: the command is added to a blocklist at `~/.config/ihistory/deleted` and filtered out of future searches. Delete lines from that file to unhide.
+
+Results and the preview are syntax-highlighted: command words (validated against `$PATH` and shell builtins, so typos stay plain), flags, strings, variables, and operators. Aliases and shell functions are not visible to `ihistory` and render plain. `Ctrl-T` toggles highlighting; the choice is remembered.
 
 ## Building
 
