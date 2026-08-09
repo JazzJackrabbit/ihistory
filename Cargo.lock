@@ -526,6 +526,7 @@ dependencies = [
  "fuzzy-matcher",
  "ratatui",
  "textwrap",
+ "unicode-width 0.2.0",
 ]
 
 [[package]]

@@ -7,6 +7,8 @@ use ratatui::{
     Frame,
 };
 
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+
 use crate::search::SearchResult;
 
 const INPUT_HEIGHT: u16 = 3;
@@ -271,11 +273,28 @@ fn render_command_line(
     let time_style = Style::default().fg(COLOR_MUTED);
 
     let time_str = format_relative_time(timestamp, now);
-    let time_width = time_str.as_ref().map(|s| s.len() + 2).unwrap_or(0);
+    let time_width = time_str.as_ref().map(|s| s.width() + 2).unwrap_or(0);
     let prefix_width = 2;
     let max_cmd_width = available_width.saturating_sub(prefix_width + time_width);
-    let display_len = max_cmd_width.saturating_sub(3).min(command.len());
-    let needs_truncation = command.len() > max_cmd_width.saturating_sub(3);
+
+    // The command is truncated by display width, never by byte offset: byte
+    // slicing panics inside multi-byte characters, and column math has to
+    // count double-width glyphs as two cells. The matcher hands out char
+    // indices, so highlighting walks chars as well.
+    let budget = max_cmd_width.saturating_sub(3);
+    let matches: std::collections::HashSet<usize> = match_indices.iter().copied().collect();
+    let mut kept: Vec<(char, bool)> = Vec::new();
+    let mut used_width = 0;
+    let mut needs_truncation = false;
+    for (i, ch) in command.chars().enumerate() {
+        let w = ch.width().unwrap_or(0);
+        if used_width + w > budget {
+            needs_truncation = true;
+            break;
+        }
+        used_width += w;
+        kept.push((ch, matches.contains(&i)));
+    }
 
     let mut spans = Vec::with_capacity(8);
     spans.push(Span::styled(
@@ -283,35 +302,28 @@ fn render_command_line(
         prefix_style,
     ));
 
-    let cmd_bytes = command.as_bytes();
-
-    if match_indices.is_empty() || match_indices.iter().all(|&i| i >= display_len) {
-        spans.push(Span::styled(
-            command[..display_len].to_string(),
-            normal_style,
-        ));
-    } else {
-        let mut last_end = 0;
-        for &idx in match_indices {
-            if idx >= display_len || idx >= cmd_bytes.len() {
-                break;
-            }
-            if idx > last_end {
-                if let Ok(text) = std::str::from_utf8(&cmd_bytes[last_end..idx]) {
-                    spans.push(Span::styled(text.to_string(), normal_style));
-                }
-            }
-            if let Ok(ch) = std::str::from_utf8(&cmd_bytes[idx..idx + 1]) {
-                spans.push(Span::styled(ch.to_string(), match_style));
-            }
-            last_end = idx + 1;
+    // Consecutive chars with the same styling collapse into one span.
+    let mut run = String::new();
+    let mut run_matched = false;
+    for &(ch, matched) in &kept {
+        if matched != run_matched && !run.is_empty() {
+            let style = if run_matched {
+                match_style
+            } else {
+                normal_style
+            };
+            spans.push(Span::styled(std::mem::take(&mut run), style));
         }
-        if last_end < display_len {
-            let end = display_len.min(cmd_bytes.len());
-            if let Ok(text) = std::str::from_utf8(&cmd_bytes[last_end..end]) {
-                spans.push(Span::styled(text.to_string(), normal_style));
-            }
-        }
+        run_matched = matched;
+        run.push(ch);
+    }
+    if !run.is_empty() {
+        let style = if run_matched {
+            match_style
+        } else {
+            normal_style
+        };
+        spans.push(Span::styled(run, style));
     }
 
     if needs_truncation {
@@ -319,8 +331,8 @@ fn render_command_line(
     }
 
     if let Some(time) = time_str {
-        let current_len: usize = spans.iter().map(|s| s.content.len()).sum();
-        let padding_needed = available_width.saturating_sub(current_len + time.len());
+        let current_width: usize = spans.iter().map(|s| s.content.as_ref().width()).sum();
+        let padding_needed = available_width.saturating_sub(current_width + time.width());
         if padding_needed > 0 {
             spans.push(Span::raw(" ".repeat(padding_needed)));
         }
@@ -333,5 +345,68 @@ fn render_command_line(
 impl Default for UI {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn text_of(line: &Line) -> String {
+        line.spans.iter().map(|s| s.content.as_ref()).collect()
+    }
+
+    fn matched_text(line: &Line) -> String {
+        line.spans
+            .iter()
+            .filter(|s| s.style.fg == Some(COLOR_MATCH))
+            .map(|s| s.content.as_ref())
+            .collect()
+    }
+
+    #[test]
+    fn truncates_non_ascii_without_panicking() {
+        // Byte-based truncation used to slice inside 'ö' and panic.
+        let cmd = "gít cömmit -m 'ünïcöde chängé' --amend --no-verify";
+        let line = render_command_line(cmd, &[], None, false, 24, 0);
+        let text = text_of(&line);
+        assert!(text.contains("..."));
+        assert!(text.starts_with("  gít cömmit"));
+    }
+
+    #[test]
+    fn highlights_char_indices_not_bytes() {
+        // "é" is two bytes; a byte-based highlighter would mark the wrong
+        // columns for every index after it.
+        let cmd = "économie status";
+        let indices = [0, 9, 10]; // é, s, t (char positions)
+        let line = render_command_line(cmd, &indices, None, false, 80, 0);
+        assert_eq!(matched_text(&line), "ést");
+    }
+
+    #[test]
+    fn counts_wide_glyphs_as_two_cells() {
+        // Four CJK chars occupy eight cells; a char-counting truncation
+        // would overrun the column budget.
+        let cmd = "echo 日本語検索 && ls";
+        let line = render_command_line(cmd, &[], None, false, 16, 0);
+        let text = text_of(&line);
+        assert!(text.contains("..."));
+        let width: usize = text.width();
+        assert!(width <= 16, "rendered width {} exceeds budget", width);
+    }
+
+    #[test]
+    fn pads_the_timestamp_by_display_width() {
+        let now = 1_700_000_000;
+        let ascii = render_command_line("ls -la", &[], Some(now - 30), false, 40, now);
+        let unicode = render_command_line("ls -lä", &[], Some(now - 30), false, 40, now);
+        assert_eq!(text_of(&ascii).width(), text_of(&unicode).width());
+    }
+
+    #[test]
+    fn fits_short_commands_without_ellipsis() {
+        let line = render_command_line("ls", &[], None, false, 40, 0);
+        assert!(!text_of(&line).contains("..."));
     }
 }
