@@ -7,7 +7,7 @@
 Output demo.gif
 
 Set FontSize 18
-Set Width 800
+Set Width 880
 Set Height 450
 Set Theme "Catppuccin Mocha"
 Set Padding 20
