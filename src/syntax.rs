@@ -180,6 +180,13 @@ pub fn classify_with(input: &str, index: Option<&CommandIndex>) -> Vec<Class> {
             // sudo/env/etc. defer the command role to the next word.
             expect_command = COMMAND_PREFIXES.contains(&word.as_str());
         }
+
+        // A char no branch consumed (a lone '$', "$(" substitution) would
+        // otherwise loop here forever — the freeze is worse than an
+        // unclassified char, so always make progress.
+        if i == start {
+            i += 1;
+        }
     }
 
     classes
@@ -197,6 +204,20 @@ mod tests {
         let start = input.find(word).expect("word present");
         let char_start = input[..start].chars().count();
         classify_with(input, None)[char_start]
+    }
+
+    #[test]
+    fn dollar_forms_terminate() {
+        // "$(" and a trailing "$" once looped forever mid-render.
+        for cmd in [
+            "echo $(date)",
+            "echo $",
+            "watch -n1 $(cat /tmp/x) | grep y",
+            "$",
+        ] {
+            let classes = classify_with(cmd, None);
+            assert_eq!(classes.len(), cmd.chars().count());
+        }
     }
 
     #[test]
